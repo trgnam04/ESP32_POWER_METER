@@ -6,6 +6,8 @@
 #include "html/html.h"
 
 /* Define --------------------------------------------------------------------*/
+#define AP_TIMEOUT_MS (5 * 50 * 1000)
+#define LOGIN_TIMEOUT_MS (30 * 60 * 1000)
 
 /* Struct --------------------------------------------------------------------*/
 // Định danh nguồn của sự kiện
@@ -51,15 +53,9 @@ typedef struct {
 } app_event_t;
 
 /* Variables -----------------------------------------------------------------*/
-AsyncWebServer          g_http_server(80);
-WebSocketsServer        g_ws_server(81);
+extern AsyncWebServer   g_http_server;
+extern WebSocketsServer g_ws_server;
 
-static QueueHandle_t    g_event_queue;
-
-static char             g_ap_ssid_temp[32];
-static uint8_t          g_ap_logged_in;
-static unsigned long    g_ap_logged_in_timeout;
-static unsigned long    g_timeout;
 
 /* Functions -----------------------------------------------------------------*/
 void start_ap_mode();
