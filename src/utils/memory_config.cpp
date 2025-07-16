@@ -46,15 +46,6 @@ uint16_t         _address_bl0940_R_DIVIDE_CALIB          = 0x0000;
 uint16_t         _address_bl0940_RL_CALIB                = 0x0000;
 uint16_t         _address_bl0940_kWh                     = 0x0000;
 
-static uint32_t  bl0940_RMSOS                            = 0x00000000;
-static uint32_t  bl0940_WATTOS                           = 0x00000000;
-static uint32_t  bl0940_WA_CREEP                         = 0x00000000;
-static uint16_t  reset_count                             = 0;
-static float     bl0940_R_DIVIDE_CALIB                   = 1.0;
-static float     bl0940_RL_CALIB                         = 1.0;
-
-float bl0940_kWh = 0.0;
-
 /* Functions -----------------------------------------------------------------*/
 void set_address(uint16_t* startAddr, uint16_t* sourceAddr, uint16_t numOfAddr, uint16_t sizeOfPara)
 {

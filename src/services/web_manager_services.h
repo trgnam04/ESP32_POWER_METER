@@ -3,6 +3,7 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "common.h"
+#include "memory_config.h"
 #include "html/html.h"
 
 /* Define --------------------------------------------------------------------*/
@@ -51,6 +52,13 @@ typedef struct {
         websocket_data_t    ws;
     } data; // Dữ liệu đi kèm, dùng chung vùng nhớ
 } app_event_t;
+
+typedef enum {
+    FSM_WS_IDLE,
+    FSM_WS_WAITING_FOR_WIFI,
+    FSM_WS_WAITING_FOR_ACK,
+    FSM_WS_FINISHED
+} ws_fsm_state_t;
 
 /* Variables -----------------------------------------------------------------*/
 extern AsyncWebServer   g_http_server;
