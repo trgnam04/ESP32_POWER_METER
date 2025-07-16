@@ -7,6 +7,7 @@
 #include "app_assert.h"
 #include "web_manager_services.h"
 #include "input_processing.h"
+#include "app_logic.h"
 
 /* Define --------------------------------------------------------------------*/
 

@@ -30,7 +30,6 @@ uint16_t         _address_wifi_password                  = 0x0000;
 uint16_t         _address_ap_ssid                        = 0x0000;
 uint16_t         _address_ap_password                    = 0x0000;
 
-
 uint16_t         _address_mqtt_host                      = 0x0000;
 uint16_t         _address_mqtt_username                  = 0x0000;
 uint16_t         _address_mqtt_password                  = 0x0000;
@@ -49,7 +48,7 @@ uint16_t         _address_bl0940_kWh                     = 0x0000;
 /* Functions -----------------------------------------------------------------*/
 void set_address(uint16_t* startAddr, uint16_t* sourceAddr, uint16_t numOfAddr, uint16_t sizeOfPara)
 {
-  uint8_t _i;
+  uint16_t _i;
   uint16_t _addr = *startAddr;
 
   for (_i = 0; _i < numOfAddr; _i++)
@@ -65,7 +64,7 @@ void set_address(uint16_t* startAddr, uint16_t* sourceAddr, uint16_t numOfAddr, 
 // Initialization & update
 void memory_init(void)
 {
-    uint16_t _addr = 0x0000;
+  uint16_t _addr = 0x0000;
 
   // device setting
   set_address(&_addr, &_address_version, 1, sizeof(_version));
@@ -92,6 +91,8 @@ void memory_init(void)
   set_address(&_addr, &_address_bl0940_R_DIVIDE_CALIB, 1, sizeof(bl0940_R_DIVIDE_CALIB));
   set_address(&_addr, &_address_bl0940_RL_CALIB, 1, sizeof(bl0940_RL_CALIB));
   set_address(&_addr, &_address_bl0940_kWh, 1, sizeof(bl0940_kWh));    
+
+  eeprom_init();
 }
 
 void memory_update_version(void)
@@ -108,17 +109,24 @@ void memory_save_wifi_config(void)
 
 void memory_load_wifi_config(void)
 {
-  char read_wifi_ssid[32];
-  char read_wifi_password[64];
-  EepromReadString(_address_wifi_ssid, read_wifi_ssid, 33);
-  EepromReadString(_address_wifi_password, read_wifi_password, 65);
+  // Luôn dọn sạch bộ đệm trước khi đọc để tránh dữ liệu rác
+  memset(_wifi_ssid, 0, sizeof(_wifi_ssid));
+  memset(_wifi_password, 0, sizeof(_wifi_password));
 
-  strcpy(_wifi_ssid, read_wifi_ssid);
-  strcpy(_wifi_password, read_wifi_password);
+  // Đọc trực tiếp vào biến toàn cục, không cần bộ đệm trung gian
+  // Hàm đọc nên trả về số byte đã đọc để kiểm tra
+  EepromReadString(_address_wifi_ssid, _wifi_ssid, sizeof(_wifi_ssid) - 1);
+  EepromReadString(_address_wifi_password, _wifi_password, sizeof(_wifi_password) - 1);
+  
+  // Đảm bảo chuỗi luôn kết thúc bằng null, dù EEPROM có dữ liệu gì đi nữa
+  _wifi_ssid[sizeof(_wifi_ssid) - 1] = '\0';
+  _wifi_password[sizeof(_wifi_password) - 1] = '\0';
+
+  // Cập nhật lại độ dài chính xác sau khi đã đọc
   _wifi_ssid_length     = strlen(_wifi_ssid);
   _wifi_password_length = strlen(_wifi_password);
-
 }
+
 
 // MQTT
 void memory_save_mqtt_config(void)
@@ -133,25 +141,22 @@ void memory_save_mqtt_config(void)
 
 void memory_load_mqtt_config(void)
 {
-  char read_mqtt_host[65];
-  char read_mqtt_username[65];
-  char read_mqtt_password[65];
-  char read_mqtt_topic_sub[65];
-  char read_mqtt_topic_pub[65];
+  // Dọn sạch các biến global trước khi ghi đè
+  memset(_mqtt_host, 0, sizeof(_mqtt_host));
+  memset(_mqtt_username, 0, sizeof(_mqtt_username));
+  memset(_mqtt_password, 0, sizeof(_mqtt_password));
+  memset(_mqtt_topic_sub, 0, sizeof(_mqtt_topic_sub));
+  memset(_mqtt_topic_pub, 0, sizeof(_mqtt_topic_pub));
 
-  EepromReadString(_address_mqtt_host, read_mqtt_host, 65);
-  EepromReadString(_address_mqtt_username, read_mqtt_username, 65);
-  EepromReadString(_address_mqtt_password, read_mqtt_password, 65);
-  EepromReadString(_address_mqtt_topic_sub, read_mqtt_topic_sub, 65);
-  EepromReadString(_address_mqtt_topic_pub, read_mqtt_topic_pub, 65);
+  // Đọc trực tiếp vào các biến toàn cục
+  EepromReadString(_address_mqtt_host, _mqtt_host, sizeof(_mqtt_host) - 1);
+  EepromReadString(_address_mqtt_username, _mqtt_username, sizeof(_mqtt_username) - 1);
+  EepromReadString(_address_mqtt_password, _mqtt_password, sizeof(_mqtt_password) - 1);
+  EepromReadString(_address_mqtt_topic_sub, _mqtt_topic_sub, sizeof(_mqtt_topic_sub) - 1);
+  EepromReadString(_address_mqtt_topic_pub, _mqtt_topic_pub, sizeof(_mqtt_topic_pub) - 1);
 
-  strcpy(_mqtt_host, read_mqtt_host);
-  strcpy(_mqtt_username, read_mqtt_username);
-  strcpy(_mqtt_password, read_mqtt_password);
-  strcpy(_mqtt_topic_sub, read_mqtt_topic_sub);
-  strcpy(_mqtt_topic_pub, read_mqtt_topic_pub);
+  // Đọc giá trị số
   _mqtt_port = EepromRead32b(_address_mqtt_port);
-
 }
 
 // Access Point
@@ -177,10 +182,10 @@ void memory_save_device_id(void)
 
 void memory_load_device_id(void)
 {
-  char read_id[11];
-  EepromReadString(_address_id, read_id, 11);
-
-  strcpy(_id, read_id);
+    memset(_id, 0, sizeof(_id));
+    // Đọc tối đa (sizeof(_id) - 1) byte để chừa chỗ cho ký tự null
+    EepromReadString(_address_id, _id, sizeof(_id) - 1); 
+    // Không cần strncpy nữa vì đã đọc trực tiếp
 }
 
 void memory_save_station_code(void)
@@ -190,11 +195,10 @@ void memory_save_station_code(void)
 
 void memory_load_station_code(void)
 {
-  char read_station_code[17];
-  EepromReadString(_address_station_code, read_station_code, 17);
-
-  strcpy(_station_code, read_station_code);
+  memset(_station_code, 0, sizeof(_station_code));
+  EepromReadString(_address_station_code, _station_code, sizeof(_station_code) - 1);
 }
+
 
 // Reset Count
 void memory_save_reset_count(void)
@@ -241,8 +245,6 @@ void memory_save_bl0940_energy_kwh(void)
 
 void memory_load_bl0940_energy_kwh(void)
 {
-  char read_station_code[17];
-  EepromReadString(_address_station_code, read_station_code, 17);
-
-  strcpy(_station_code, read_station_code);
+  // Đọc giá trị kWh, không phải station_code
+  bl0940_kWh = EepromRead32b(_address_bl0940_kWh);
 }

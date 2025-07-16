@@ -7,11 +7,13 @@
 
 void setup() {
   Serial.begin(9600);
-
+  memory_init();
+  delay(100);
   init_system_supervisor();
   delay(100);
   init_input_processing();
-  delay(100);  
+  delay(100);    
+
 }
 
 void loop() {  

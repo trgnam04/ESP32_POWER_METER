@@ -61,6 +61,9 @@
 #define AP_ADMIN_USERNAME       "admin"
 #define AP_ADMIN_PASSWORD       "adminisme"
 
+#define WIFI_CONNECTED_BIT          (1 << 0)
+#define MQTT_CONNECTED_BIT          (1 << 1)
+
 /* Struct --------------------------------------------------------------------*/
 typedef enum 
 {
@@ -78,6 +81,11 @@ typedef struct
 {
     app_system_command_t command;
 } app_system_event_t;
+
+typedef struct {
+    char topic[64];
+    char payload[256];    
+} mqtt_message_t;
 
 /* Variables -----------------------------------------------------------------*/
 extern char             _id[11];
@@ -145,8 +153,19 @@ extern TaskHandle_t             _wifi_manager_handler_t;
 extern TaskHandle_t             _app_logic_handler_t;
 
 // queue manager
+// system command queue
 extern QueueHandle_t            _system_cmd_queue;
 
+// normal mode communication data queue
+extern QueueHandle_t            _mqtt_outgoing_queue;
+extern QueueHandle_t            _mqtt_incoming_queue;
+
+// system state
 extern app_system_state_t       _system_current_state;
+
+// Event group
+// normal mode event group
+extern EventGroupHandle_t       _normal_mode_event_group;
+
 
 #endif // __COMMON_H

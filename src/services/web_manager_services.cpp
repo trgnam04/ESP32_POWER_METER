@@ -354,10 +354,7 @@ void task_event_handler(void *pvParameters)
                     // those configurations are set downside the system (or we can think those configuration for taske 
                     // running on core 0 which for BLE and Wifi) so delete this task doesnt affect it.
                     app_system_event_t cmd_evt;
-                    cmd_evt.command = CMD_SWITCH_TO_NORMAL_MODE;
-
-                    ASSERT_BOOL(WiFi.softAPdisconnect(), TAG, "Disconnect AP mode failed.");
-                    ASSERT_BOOL(WiFi.disconnect(), TAG, "Reset WiFi failed.");                                        
+                    cmd_evt.command = CMD_SWITCH_TO_NORMAL_MODE;                    
 
                     xQueueSend(_system_cmd_queue, &cmd_evt, 0);
                                         
