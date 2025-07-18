@@ -3,6 +3,8 @@
 #include "memory_config.h"
 #include "app_log.h"
 #include "app_assert.h"
+#include "cJSON.h"
+#include "relay.h"
 
 /* Define --------------------------------------------------------------------*/
 

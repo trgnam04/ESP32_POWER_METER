@@ -5,61 +5,54 @@
 /* Define --------------------------------------------------------------------*/
 
 /* Variables -----------------------------------------------------------------*/
-WiFiUDP    ntpUDP;
-NTPClient  time_client(ntpUDP, "pool.ntp.org", 7 * 3600, 60000);
-time_t     epoch_time;
-struct tm* ptm;
+static tm rtc_time;
 
-bool     rtc_state = false;
-uint16_t rtc_year  = 0;
-uint8_t  rtc_month = 0, rtc_day = 0;
-uint8_t  rtc_hour = 0, rtc_minute = 0, rtc_second = 0;
-String   rtc_string;
 
 /* Functions -----------------------------------------------------------------*/
 void rtc_init(void)
 {
-  time_client.begin();
+  time_t now = 0;
+  time(&now);
+  localtime_r(&now, &rtc_time);
 }
 
-void rtc_process(void)
+void rtc_set(time_t timestamp)
 {
-  static unsigned long current_millis  = 0;
-  static unsigned long previous_millis = 0;
+  localtime_r(&timestamp, &rtc_time);
+}
 
-  current_millis = millis();
-  if (current_millis - previous_millis >= 1000)
-  {
-    previous_millis = current_millis;
+time_t rtc_get(void)
+{
+  return mktime(&rtc_time);
+}
 
-    time_client.update();
-    epoch_time = time_client.getEpochTime();
+String rtc_get_formated(void)
+{
+  char buffer[32];
+  snprintf(buffer, sizeof(buffer), "%04d/%02d/%02dT%02d:%02d:%02d",
+            rtc_time.tm_year + 1900,
+            rtc_time.tm_mon + 1,
+            rtc_time.tm_mday,
+            rtc_time.tm_hour,
+            rtc_time.tm_min,
+            rtc_time.tm_sec);
+  return String(buffer);
+}
 
-    if (time_client.isTimeSet())
-    {
-      rtc_state = true;
-
-      rtc_hour   = time_client.getHours();
-      rtc_minute = time_client.getMinutes();
-      rtc_second = time_client.getSeconds();
-
-      tm* ptm   = gmtime((time_t*)&epoch_time);
-      rtc_day   = ptm->tm_mday;
-      rtc_month = ptm->tm_mon + 1;
-      rtc_year  = ptm->tm_year - 100;
-
-      rtc_string = String(rtc_year) + "/" + (rtc_month < 10 ? "0" : "") + String(rtc_month) + "/" + (rtc_day < 10 ? "0" : "") + String(rtc_day) + "T" +
-                          (rtc_hour < 10 ? "0" : "") + String(rtc_hour) + ":" + (rtc_minute < 10 ? "0" : "") + String(rtc_minute) + ":" +
-                          (rtc_second < 10 ? "0" : "") + String(rtc_second);
-
-      // Serial.print("rtc: \t [update] ");
-      // Serial.println(rtc_string);
-    }
-    else
-    {
-      // Serial.println("rtc: \t [error] time not set");
-
-      rtc_state = false;
-    }
+uint8_t rtc_update_from_server(const char* time_str)
+{
+  int year, month, day, hour, min, sec;
+  if (sscanf(time_str, "%d/%d/%dT%d:%d:%d", &year, &month, &day, &hour, &min, &sec) != 6) {
+    return false;
   }
+
+  rtc_time.tm_year = year - 1900;
+  rtc_time.tm_mon  = month - 1;
+  rtc_time.tm_mday = day;
+  rtc_time.tm_hour = hour;
+  rtc_time.tm_min  = min;
+  rtc_time.tm_sec  = sec;
+
+  return true;
+
 }

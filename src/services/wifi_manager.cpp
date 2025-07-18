@@ -5,7 +5,13 @@
 
 /* Variables -----------------------------------------------------------------*/
 static const char*          TAG                         = "WIFI MANAGER";
+uint8_t                     _wifi_ssid_length           = strlen(WIFI_SSID_DEFAULT);
+uint8_t                     _wifi_password_length       = strlen(WIFI_PASSWORD_DEFAULT);
+char                        _wifi_ssid[33]              = WIFI_SSID_DEFAULT;     
+char                        _wifi_password[65]          = WIFI_PASSWORD_DEFAULT;
 TaskHandle_t                _wifi_manager_handler_t     = NULL;
+
+
 
 /* Functions -----------------------------------------------------------------*/
 void init_wifi_manager(void)

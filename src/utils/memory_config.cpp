@@ -4,20 +4,6 @@
 /* Define --------------------------------------------------------------------*/
 
 /* Variables -----------------------------------------------------------------*/
-uint8_t          _wifi_ssid_length                       = strlen(WIFI_SSID_DEFAULT);
-uint8_t          _wifi_password_length                   = strlen(WIFI_PASSWORD_DEFAULT);
-char             _wifi_ssid[33]                          = WIFI_SSID_DEFAULT;
-char             _wifi_password[65]                      = WIFI_PASSWORD_DEFAULT;
-char             _ap_ssid[65]                            = AP_SSID_DEFAULT;
-char             _ap_password[65]                        = AP_PASSWORD_DEFAULT;
-
-char             _mqtt_host[65]                          = MQTT_HOST;
-char             _mqtt_username[65]                      = MQTT_USERNAME;
-char             _mqtt_password[65]                      = MQTT_PASSWORD;
-char             _mqtt_topic_sub[65]                     = MQTT_TOPIC_SUB;
-char             _mqtt_topic_pub[65]                     = MQTT_TOPIC_PUB;
-uint32_t         _mqtt_port                              = MQTT_PORT;
-
 uint16_t         _address_version                        = 0x0000;
 uint16_t         _address_id                             = 0x0000;
 uint16_t         _address_reset_count                    = 0x0000;

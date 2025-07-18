@@ -5,6 +5,7 @@
 #include "app_log.h"
 #include "app_assert.h"
 #include "button.h"
+#include "relay.h"
 
 /* Define --------------------------------------------------------------------*/
 

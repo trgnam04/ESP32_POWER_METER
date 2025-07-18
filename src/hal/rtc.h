@@ -2,26 +2,20 @@
 #define __RTC_H_
 
 /* Includes ------------------------------------------------------------------*/
-#include <stdint.h>
-#include <WString.h>
-
-#include <Arduino.h>
-#include <WiFi.h>
-#include <NTPClient.h>
-#include <WiFiUdp.h>
+#include "common.h"
+#include "time.h"
+#include "sys/time.h"
 
 /* Define --------------------------------------------------------------------*/
 
 /* Variables -----------------------------------------------------------------*/
-extern bool     rtc_state;
-extern uint16_t rtc_year;
-extern uint8_t  rtc_month, rtc_day;
-extern uint8_t  rtc_hour, rtc_minute, rtc_second;
-extern String   rtc_string;
-extern TaskHandle_t    RTCTask_handle_t;
 
 /* Functions -----------------------------------------------------------------*/
 void rtc_init(void);
-void rtc_process(void);
+void rtc_set(time_t timestamp);
+time_t rtc_get(void);
+String rtc_get_formated(void);
+uint8_t rtc_update_from_server(const char* time_str);
+
 
 #endif // __RTC_H_

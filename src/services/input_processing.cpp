@@ -28,7 +28,7 @@ void init_input_processing(void)
 
 void task_input_processing(void *pvParameters)
 {
-    const TickType_t delay_ticks = pdMS_TO_TICKS(BUTTON_DEBOUNCE_MS);
+    const TickType_t delay_ticks = pdMS_TO_TICKS(BUTTON_DEBOUNCE_MS);    
 
     for(;;)
     {
@@ -37,6 +37,8 @@ void task_input_processing(void *pvParameters)
         if (button_is_short_pressed())
         {
             APP_LOGI(TAG, "Button short pressed");
+            APP_LOGI(TAG, "Toggle Relay");
+            relay_toggle();
         }
         else if (button_is_long_pressed())
         {

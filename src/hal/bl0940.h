@@ -95,7 +95,7 @@ public:
 
   // test
 
-  void getData(void);
+  bool getData(void);
   void restorekWh(void);
 
 private:

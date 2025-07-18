@@ -7,11 +7,11 @@
 #if BL0940_DEBUG
 #define DBG(...)                 \
   {                              \
-    Serial.println(__VA_ARGS__); \
+    \
   }
 #define ERR(...)                 \
   {                              \
-    Serial.println(__VA_ARGS__); \
+    \
   }
 #else
 #define DBG(...)
@@ -38,10 +38,7 @@ float     bl0940_RL_CALIB                         = 1.0;
 BL0940::BL0940()
 {
   // Set up SPI bus
-  SPI.begin();
-
-  SPI.begin(PIN_CLK, PIN_MISO, PIN_MOSI, PIN_CS);
-  SPI.begin();
+  SPI.begin(PIN_CLK, PIN_MISO, PIN_MOSI, PIN_CS);  
   SPI.setBitOrder(MSBFIRST);
   SPI.setDataMode(SPI_MODE1);
 
@@ -154,7 +151,7 @@ bool BL0940::getVoltage(float* voltage)
   uint32_t data;
   if (false == _readRegister(0x06, &data))
   {
-    ERR("bl: \t [get V] Can not read V_RMS register.");
+    // ERR("bl: \t [get V] Can not read V_RMS register.");
     return false;
   }
 
@@ -181,7 +178,7 @@ bool BL0940::getCurrent(float* current)
   uint32_t data;
   if (false == _readRegister(0x04, &data))
   {
-    ERR("bl: \t [get I] Can not read I_RMS register.");
+    // ERR("bl: \t [get I] Can not read I_RMS register.");
     return false;
   }
   *current = ((float)data * Vref_I) / (324004.0 * RL);
@@ -207,7 +204,7 @@ bool BL0940::getActivePower(float* activePower)
   uint32_t data;
   if (false == _readRegister(0x08, &data))
   {
-    ERR("bl: \t [get kW] Can not read WATT register.");
+    // ERR("bl: \t [get kW] Can not read WATT register.");
     return false;
   }
 
@@ -236,7 +233,7 @@ bool BL0940::getReactivePower(float* reactivePower)
 
   if (!getActivePower(&activePower) || !getPhaseAngle(&phraseAngle))
   {
-    ERR("bl: \t [get Reactive Power] Can not read W and Phrase Angle register.");
+    // ERR("bl: \t [get Reactive Power] Can not read W and Phrase Angle register.");
     return false;
   }
 
@@ -259,7 +256,7 @@ bool BL0940::getApparentPower(float* apparentPower)
 
   if (!getActivePower(&activePower) || !getPowerFactor(&powerFactor))
   {
-    ERR("bl: \t [get Reactive Power] Can not read W and Power Factor register.");
+    // ERR("bl: \t [get Reactive Power] Can not read W and Power Factor register.");
     return false;
   }
 
@@ -300,7 +297,7 @@ bool BL0940::getActiveEnergy(float* activeEnergy)
   uint32_t data;
   if (false == _readRegister(0x0A, &data))
   {
-    ERR("bl: \t [get kWh] Can not read CF_CNT register.");
+    // ERR("bl: \t [get kWh] Can not read CF_CNT register.");
     return false;
   }
 
@@ -566,121 +563,125 @@ void BL0940::restorekWh(void)
   this->kWh_restore = bl0940_kWh;
 }
 
-void BL0940::getData(void)
+bool BL0940::getData(void)
 {
   static STR_BL0940_DATA electricity_data = {};
 
   static uint8_t test_current_counter = 0;
   static uint8_t test_kWh_counter     = 0;
 
-  current_millis = millis();
-  if ((current_millis - previous_millis) >= 1000)
+
+  // Save previous data
+  previous_current      = this->current;
+  previous_activeEnergy = this->activeEnergy;
+
+  // Get data
+  if (this->getVoltage(&this->voltage) == false)
+    this->voltage = -1;
+  if (this->getCurrent(&this->current) == false)
+    this->current = -1;
+  if (this->getPowerFactor(&this->powerFactor) == false)
+    this->powerFactor = -1;
+  if (this->getActivePower(&this->activePower) == false)
+    this->activePower = -1;
+  if (this->getActiveEnergy(&this->activeEnergy) == false)
+    this->activeEnergy = -1;
+  if (this->getTemperature(&this->temperature) == false)
+    this->temperature = -1;
+
+  if (this->temperature == -1 || this->current == -1
+  || this->powerFactor == -1 || this->activePower == -1
+  || this->activeEnergy == -1 || this->voltage == -1)
   {
-    previous_millis = current_millis;
-
-    // Save previous data
-    previous_current      = this->current;
-    previous_activeEnergy = this->activeEnergy;
-
-    // Get data
-    if (this->getVoltage(&this->voltage) == false)
-      this->voltage = -1;
-    if (this->getCurrent(&this->current) == false)
-      this->current = -1;
-    if (this->getPowerFactor(&this->powerFactor) == false)
-      this->powerFactor = -1;
-    if (this->getActivePower(&this->activePower) == false)
-      this->activePower = -1;
-    if (this->getActiveEnergy(&this->activeEnergy) == false)
-      this->activeEnergy = -1;
-    if (this->getTemperature(&this->temperature) == false)
-      this->temperature = -1;
-    // // Save kWh
-    // this->activeEnergy = this->activeEnergy + this->kWh_restore;
-
-    // if (this->activeEnergy - this->kWh_pre == 1)
-    // {
-    //   bl0940_kWh = this->activeEnergy;
-    //   save_bl0940_kWh();
-    // }
-
-    // this->kWh_pre = this->activeEnergy;
-
-    // // Validate data
-    // if (this->current == 0)
-    //   this->powerFactor = 100;
-
-    // if (this->temperature < 0)
-    //   this->temperature = 0;
-
-    /* Testing ----------------------------------------------------------------------------- */
-    // this->previous_current       = this->current;
-    // this->previous_activeEnergy  = this->activeEnergy;
-    // this->previous_device_status = this->current_device_status;
-
-    // if (relay_status == 0)
-    // {
-    //   if (this->current > 0)
-    //     this->current_device_status = 1;
-    //   else
-    //     this->current_device_status = 0;
-
-    //   if (test_current_counter == 0)
-    //     this->current = ((int)this->current + 1) % 5;
-
-    //   if (test_kWh_counter == 0)
-    //     this->activeEnergy = ((int)this->activeEnergy + 1) % 100;
-    // }
-    // else
-    // {
-    //   this->current_device_status = 0;
-    //   this->current               = 0;
-    //   this->activeEnergy          = 0;
-    // }
-
-    // test_current_counter = (test_current_counter + 1) % 1;
-    // test_kWh_counter     = (test_kWh_counter + 1) % 5;
-
-    // if (this->current_device_status != this->previous_device_status)
-    // {
-    //   // Serial.printf("mqtt: \t [publish] device changed status\n");
-    //   mqtt_pub_status("device changed status", relay_status, this->current_device_status);
-    // }
-
-    // if (this->current != this->previous_current)
-    // {
-    //   // Serial.printf("mqtt: \t [publish] current changed\n");
-    //   mqtt_pub_electricity();
-    // }
-
-    // if (this->activeEnergy != this->previous_activeEnergy)
-    // {
-    //   // Serial.printf("mqtt: \t [publish] kWh changed\n");
-    //   mqtt_pub_electricity();
-    // }
-
-    /* Testing ----------------------------------------------------------------------------- */
-
-    // // Check if the current difference is greater than 0.1 Ampe
-    // if ((abs(this->current - previous_current) >= 0.1 || (abs(this->activeEnergy - previous_current) >= 0.1)) && rtc_state == true)
-    // {
-    //   // Add data to node
-    //   electricity_data.voltage      = this->voltage;
-    //   electricity_data.current      = this->current;
-    //   electricity_data.activePower  = this->activePower;
-    //   electricity_data.activeEnergy = this->activeEnergy;
-    //   electricity_data.powerFactor  = this->powerFactor;
-    //   electricity_data.temperature  = this->temperature;
-    //   electricity_data.dt           = rtc_string;em 
-
-    //   // Add node to list
-    //   electricity_list.push_back(electricity_data);
-
-    //   // Update previous current value
-    //   previous_current = this->current;
-    // }
-
-    /*Serial.printf("bl: \t [get] %0.2f (V); \t %0.2f (A); \t %0.2f (W); \t %0.2f (Wh); \t %0.2f (%%); \t %0.2f (°C)\n", this->voltage, this->current,
-                  this->activePower, this->activeEnergy, this->powerFactor, this->temperature);*/
+    return false;
   }
+  else return true;
+  // // Save kWh
+  // this->activeEnergy = this->activeEnergy + this->kWh_restore;
+
+  // if (this->activeEnergy - this->kWh_pre == 1)
+  // {
+  //   bl0940_kWh = this->activeEnergy;
+  //   save_bl0940_kWh();
+  // }
+
+  // this->kWh_pre = this->activeEnergy;
+
+  // // Validate data
+  // if (this->current == 0)
+  //   this->powerFactor = 100;
+
+  // if (this->temperature < 0)
+  //   this->temperature = 0;
+
+  /* Testing ----------------------------------------------------------------------------- */
+  // this->previous_current       = this->current;
+  // this->previous_activeEnergy  = this->activeEnergy;
+  // this->previous_device_status = this->current_device_status;
+
+  // if (relay_status == 0)
+  // {
+  //   if (this->current > 0)
+  //     this->current_device_status = 1;
+  //   else
+  //     this->current_device_status = 0;
+
+  //   if (test_current_counter == 0)
+  //     this->current = ((int)this->current + 1) % 5;
+
+  //   if (test_kWh_counter == 0)
+  //     this->activeEnergy = ((int)this->activeEnergy + 1) % 100;
+  // }
+  // else
+  // {
+  //   this->current_device_status = 0;
+  //   this->current               = 0;
+  //   this->activeEnergy          = 0;
+  // }
+
+  // test_current_counter = (test_current_counter + 1) % 1;
+  // test_kWh_counter     = (test_kWh_counter + 1) % 5;
+
+  // if (this->current_device_status != this->previous_device_status)
+  // {
+  //   // Serial.printf("mqtt: \t [publish] device changed status\n");
+  //   mqtt_pub_status("device changed status", relay_status, this->current_device_status);
+  // }
+
+  // if (this->current != this->previous_current)
+  // {
+  //   // Serial.printf("mqtt: \t [publish] current changed\n");
+  //   mqtt_pub_electricity();
+  // }
+
+  // if (this->activeEnergy != this->previous_activeEnergy)
+  // {
+  //   // Serial.printf("mqtt: \t [publish] kWh changed\n");
+  //   mqtt_pub_electricity();
+  // }
+
+  /* Testing ----------------------------------------------------------------------------- */
+
+  // // Check if the current difference is greater than 0.1 Ampe
+  // if ((abs(this->current - previous_current) >= 0.1 || (abs(this->activeEnergy - previous_current) >= 0.1)) && rtc_state == true)
+  // {
+  //   // Add data to node
+  //   electricity_data.voltage      = this->voltage;
+  //   electricity_data.current      = this->current;
+  //   electricity_data.activePower  = this->activePower;
+  //   electricity_data.activeEnergy = this->activeEnergy;
+  //   electricity_data.powerFactor  = this->powerFactor;
+  //   electricity_data.temperature  = this->temperature;
+  //   electricity_data.dt           = rtc_string;em 
+
+  //   // Add node to list
+  //   electricity_list.push_back(electricity_data);
+
+  //   // Update previous current value
+  //   previous_current = this->current;
+  // }
+
+  /*Serial.printf("bl: \t [get] %0.2f (V); \t %0.2f (A); \t %0.2f (W); \t %0.2f (Wh); \t %0.2f (%%); \t %0.2f (°C)\n", this->voltage, this->current,
+                this->activePower, this->activeEnergy, this->powerFactor, this->temperature);*/
+
 }

@@ -4,24 +4,30 @@
 AsyncWebServer          g_http_server(80);
 WebSocketsServer        g_ws_server(81);
 
-static QueueHandle_t    g_event_queue               = NULL;
-
 static char             g_ap_ssid_temp[32]          = "";
 static uint8_t          g_is_ap_logged_in           = 0;
 static TickType_t       g_last_activity_tick        = 0;
 static TickType_t       g_login_timestamp_tick      = 0;
 
 char                    _id[11]                     = ID_DEFAULT;            
-uint16_t                _version                    = VERSION_DEFAULT;
 char                    _station_code[17]           = STATION_CODE;
 TaskHandle_t            _event_task_handler_t       = NULL;
 TaskHandle_t            _ap_main_loop_handler_t     = NULL;
 
+char                    _ap_ssid[65]                = AP_SSID_DEFAULT;
+char                    _ap_password[65]            = AP_PASSWORD_DEFAULT;
+
 static const char*      TAG                         = "WEB MANAGER";
 
-static ws_fsm_state_t s_ws_fsm_state         = FSM_WS_IDLE;
-static uint8_t      s_current_ws_client_num  = 0;
-static TickType_t   s_ws_last_sent_tick      = 0; // Để xử lý timeout gửi lại
+static ws_fsm_state_t   s_ws_fsm_state              = FSM_WS_IDLE;
+static uint8_t          s_current_ws_client_num     = 0;
+static TickType_t       s_ws_last_sent_tick         = 0; // Để xử lý timeout gửi lại
+
+static char             s_latest_sensor_json[256]   = "";
+static SemaphoreHandle_t s_sensor_data_mutex        = NULL;
+
+
+static raw_sensor_data_t    sensor_data_local_buffer;
 
 
 /**
@@ -37,10 +43,11 @@ static void send_ws_json(const JsonDocument& doc) {
 
 void start_ap_mode()
 {
-    APP_LOGI(TAG, "Ap mode started.");
+    APP_LOGI(TAG, "Ap mode started.");    
 
-    g_event_queue = xQueueCreate(10, sizeof(app_event_t));
-    ASSERT_BOOL(g_event_queue != NULL, TAG, "Failed to create event queue");
+    s_sensor_data_mutex = xSemaphoreCreateMutex();
+    ASSERT_BOOL(s_sensor_data_mutex != NULL, TAG, "Failed to create sensor data mutex");
+
 
     BaseType_t task_result = xTaskCreatePinnedToCore(
         task_event_handler,
@@ -125,19 +132,54 @@ void setup_http_server_endpoints() {
 
     g_http_server.on("/PowerMeter", HTTP_GET, [](AsyncWebServerRequest* request)
     {
-        String data = "";
+        // 1. Tạo một bản sao cục bộ để chứa dữ liệu
+        // Điều này giúp chúng ta giữ Mutex trong thời gian ngắn nhất có thể
+        raw_sensor_data_t sensor_copy; 
 
-        // if (bl0940.current == 0)
-        // {
-        // data = String(bl0940.voltage) + "," + String(bl0940.current) + "," + String(bl0940.activePower) + "," + String(bl0940.activeEnergy) + "," +
-        //         String(100) + "," + String(bl0940.temperature);
-        // }
-        // else
-        // {
-        // data = String(bl0940.voltage) + "," + String(bl0940.current) + "," + String(bl0940.activePower) + "," + String(bl0940.activeEnergy) + "," +
-        //         String(bl0940.powerFactor) + "," + String(bl0940.temperature);
-        // }
-        request->send(200, "text/plain", data.c_str());
+        // 2. Yêu cầu quyền truy cập vào struct chung (lấy "chìa khóa" Mutex)
+        if (xSemaphoreTake(s_sensor_data_mutex, pdMS_TO_TICKS(100)) == pdTRUE)
+        {
+            // **TRUY CẬP AN TOÀN**
+            // 3. Sao chép dữ liệu từ struct chung ra bản sao cục bộ
+            sensor_copy = sensor_data_local_buffer;
+            
+            // 4. Trả lại Mutex ngay lập tức sau khi sao chép xong
+            xSemaphoreGive(s_sensor_data_mutex);
+        }
+        else
+        {
+            // Nếu không lấy được Mutex trong 100ms, báo lỗi server bận
+            request->send(503, "text/plain", "Service temporarily unavailable");
+            return;
+        }
+
+        // 5. Bây giờ, làm việc trên bản sao cục bộ một cách an toàn
+        String data_to_send = "";
+        if (sensor_copy.is_valid) 
+        {
+            // Định dạng chuỗi theo đúng logic bạn yêu cầu
+            data_to_send += String(sensor_copy.voltage) + ",";
+            data_to_send += String(sensor_copy.current) + ",";
+            data_to_send += String(sensor_copy.activePower) + ",";
+            data_to_send += String(sensor_copy.activeEnergy) + ",";
+            
+            // Áp dụng logic cho power factor
+            if (sensor_copy.current == 0) {
+                data_to_send += String(100) + ",";
+            } else {
+                data_to_send += String(sensor_copy.powerFactor) + ",";
+            }
+
+            data_to_send += String(sensor_copy.temperature);
+        } 
+        else 
+        {
+            // Trả về một chuỗi báo lỗi nếu chưa có dữ liệu hợp lệ
+            data_to_send = "0,0,0,0,0,0"; // Hoặc "Waiting for data..."
+        }
+
+        // 6. Gửi chuỗi dữ liệu đã được định dạng
+        request->send(200, "text/plain", data_to_send);
     });
     
     g_http_server.on("/scan_wifi", HTTP_GET, [](AsyncWebServerRequest *request){
@@ -167,7 +209,7 @@ void setup_http_server_endpoints() {
             evt.data.http.param1[sizeof(evt.data.http.param1) - 1] = '\0';
             evt.data.http.param2[sizeof(evt.data.http.param2) - 1] = '\0';
 
-            if (xQueueSend(g_event_queue, &evt, 0) == pdPASS) {
+            if (xQueueSend(_web_manager_event_queue, &evt, 0) == pdPASS) {
                 request->send(200, "text/plain", "OK. WiFi update request received.");
             } else {
                 request->send(503, "text/plain", "Server busy.");
@@ -186,7 +228,7 @@ void setup_http_server_endpoints() {
             strncpy(evt.data.http.param1, request->getParam("id", true)->value().c_str(), sizeof(evt.data.http.param1) - 1);
             strncpy(evt.data.http.param2, request->getParam("station_code", true)->value().c_str(), sizeof(evt.data.http.param2) - 1);
             
-            if (xQueueSend(g_event_queue, &evt, 0) == pdPASS) {
+            if (xQueueSend(_web_manager_event_queue, &evt, 0) == pdPASS) {
                 request->send(200, "text/plain", "OK. Admin update request received.");
             } else {
                 request->send(503, "text/plain", "Server busy.");
@@ -225,7 +267,7 @@ void setup_http_server_endpoints() {
         evt.source = EVT_SRC_HTTP_SERVER;
         evt.type   = HTTP_REQ_GO_NORMAL;
         
-        if (xQueueSend(g_event_queue, &evt, 0) == pdPASS) {
+        if (xQueueSend(_web_manager_event_queue, &evt, 0) == pdPASS) {
             request->send(200, "text/plain", "OK. Switching to normal mode...");
         } else {
             request->send(503, "text/plain", "Server busy.");
@@ -245,7 +287,7 @@ void setup_http_server_endpoints() {
  */
 void websocket_event_callback(uint8_t num, WStype_t type, uint8_t *payload, size_t length) {
     // Chỉ xử lý nếu queue đã được khởi tạo
-    if (g_event_queue == NULL) {
+    if (_web_manager_event_queue == NULL) {
         return;
     }
 
@@ -257,14 +299,14 @@ void websocket_event_callback(uint8_t num, WStype_t type, uint8_t *payload, size
         {
             evt.type = WEBSOCKET_DISCONNECTED;
             evt.data.ws.client_num = num;
-            xQueueSend(g_event_queue, &evt, 0);
+            xQueueSend(_web_manager_event_queue, &evt, 0);
             break;
         }
         case WStype_CONNECTED:
         {
             evt.type = WEBSOCKET_CONNECTED;
             evt.data.ws.client_num = num;
-            xQueueSend(g_event_queue, &evt, 0);
+            xQueueSend(_web_manager_event_queue, &evt, 0);
             break;
         }
         case WStype_TEXT:
@@ -277,7 +319,7 @@ void websocket_event_callback(uint8_t num, WStype_t type, uint8_t *payload, size
             memcpy(evt.data.ws.payload, payload, len_to_copy);
             evt.data.ws.payload[len_to_copy] = '\0';
             
-            xQueueSend(g_event_queue, &evt, 0);
+            xQueueSend(_web_manager_event_queue, &evt, 0);
             break;
         }                
         default:
@@ -298,7 +340,7 @@ void task_event_handler(void *pvParameters)
 
     for(;;)
     {
-        if(xQueueReceive(g_event_queue, &evt, portMAX_DELAY) == pdPASS)
+        if(xQueueReceive(_web_manager_event_queue, &evt, portMAX_DELAY) == pdPASS)
         {
             g_last_activity_tick = xTaskGetTickCount();
             APP_LOGI(TAG, "Activity detected, AP timeout reset.");
@@ -316,7 +358,7 @@ void task_event_handler(void *pvParameters)
                     _wifi_ssid_length = sizeof(_wifi_ssid);
                     _wifi_password_length = sizeof(_wifi_password_length);
                     
-                    memory_save_wifi_config();
+                    memory_save_wifi_config();                    
                     
                     break;
                 
@@ -417,13 +459,59 @@ void task_event_handler(void *pvParameters)
                                         s_ws_fsm_state = FSM_WS_FINISHED;
                                         // Ra lệnh chuyển chế độ bằng cách tự gửi sự kiện
                                         app_event_t self_evt = { .source = EVT_SRC_HTTP_SERVER, .type = HTTP_REQ_GO_NORMAL };
-                                        xQueueSend(g_event_queue, &self_evt, 0);
+                                        xQueueSend(_web_manager_event_queue, &self_evt, 0);
                                     }
                                 }
                             }
                             break;
                     }
                     break;
+                
+                case EVT_SRC_SENSOR:
+                {
+                    switch(evt.type)
+                    {
+                        case SENSOR_DATA_READY:
+                        {
+                            APP_LOGI(TAG, "Handler: Received new sensor data, parsing and updating struct.");
+            
+                            // Phân tích chuỗi JSON nhận được từ sự kiện
+                            StaticJsonDocument<256> json_doc;
+                            DeserializationError error = deserializeJson(json_doc, evt.data.sensor.payload);
+
+                            if (error) {
+                                APP_LOGE(TAG, "Handler: Failed to parse sensor JSON: %s", error.c_str());
+                                break; // Bỏ qua nếu JSON lỗi
+                            }
+
+                            // Yêu cầu quyền truy cập vào struct chung (lấy "chìa khóa")
+                            if (xSemaphoreTake(s_sensor_data_mutex, pdMS_TO_TICKS(100)) == pdTRUE)
+                            {
+                                // **TRUY CẬP AN TOÀN**
+                                // Gán các giá trị đã phân tích vào struct toàn cục
+                                sensor_data_local_buffer.voltage      = json_doc["voltage"];
+                                sensor_data_local_buffer.current      = json_doc["current"];
+                                sensor_data_local_buffer.activePower  = json_doc["activePower"];
+                                sensor_data_local_buffer.activeEnergy = json_doc["activeEnergy"];
+                                sensor_data_local_buffer.powerFactor  = json_doc["powerFactor"];
+                                sensor_data_local_buffer.temperature  = json_doc["temperature"];
+                                sensor_data_local_buffer.is_valid     = true;
+                                
+                                // Trả lại "chìa khóa" ngay sau khi dùng xong
+                                xSemaphoreGive(s_sensor_data_mutex);
+                            }
+                            else
+                            {
+                                APP_LOGW(TAG, "Handler: Could not get mutex to update sensor struct.");
+                            }
+                            break;
+                        }
+                        default:
+                        {
+                            break;
+                        }
+                    }
+                }
             }
         } else {
             // KHÔNG CÓ SỰ KIỆN MỚI -> KIỂM TRA CÁC LOẠI TIMEOUT
@@ -433,7 +521,7 @@ void task_event_handler(void *pvParameters)
             if ((current_tick - g_last_activity_tick) > pdMS_TO_TICKS(AP_TIMEOUT_MS)) {
                 APP_LOGI(TAG, "AP mode timed out. Switching to normal mode.");
                 app_event_t self_evt = { .source = EVT_SRC_HTTP_SERVER, .type = HTTP_REQ_GO_NORMAL };
-                xQueueSend(g_event_queue, &self_evt, 0);
+                xQueueSend(_web_manager_event_queue, &self_evt, 0);
             }
 
             // 2. Kiểm tra timeout của phiên đăng nhập
