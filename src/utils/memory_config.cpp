@@ -94,21 +94,19 @@ void memory_save_wifi_config(void)
 }
 
 void memory_load_wifi_config(void)
-{
-  // Luôn dọn sạch bộ đệm trước khi đọc để tránh dữ liệu rác
+{  
   memset(_wifi_ssid, 0, sizeof(_wifi_ssid));
   memset(_wifi_password, 0, sizeof(_wifi_password));
 
-  // Đọc trực tiếp vào biến toàn cục, không cần bộ đệm trung gian
-  // Hàm đọc nên trả về số byte đã đọc để kiểm tra
+  
   EepromReadString(_address_wifi_ssid, _wifi_ssid, sizeof(_wifi_ssid) - 1);
   EepromReadString(_address_wifi_password, _wifi_password, sizeof(_wifi_password) - 1);
   
-  // Đảm bảo chuỗi luôn kết thúc bằng null, dù EEPROM có dữ liệu gì đi nữa
+  
   _wifi_ssid[sizeof(_wifi_ssid) - 1] = '\0';
   _wifi_password[sizeof(_wifi_password) - 1] = '\0';
 
-  // Cập nhật lại độ dài chính xác sau khi đã đọc
+  
   _wifi_ssid_length     = strlen(_wifi_ssid);
   _wifi_password_length = strlen(_wifi_password);
 }

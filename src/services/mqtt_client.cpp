@@ -54,16 +54,13 @@ void task_mqtt_client(void *pvParameters) {
     
     
     for(;;) {
-        // 1. Chờ đến khi có Wi-Fi
         APP_LOGI(TAG, "MQTT: Waiting for WiFi connection...");
         xEventGroupWaitBits(_normal_mode_event_group, WIFI_CONNECTED_BIT, pdFALSE, pdTRUE, portMAX_DELAY);
-        
-        // 2. Kết nối MQTT
+                
         APP_LOGI(TAG, "MQTT: WiFi connected, now connecting to MQTT broker...");
         mqtt_client.begin(_mqtt_host, _mqtt_port, wifi_client);
         mqtt_client.onMessage(mqtt_message_callback);
-        
-        // Vòng lặp kết nối lại MQTT
+                
         while(!mqtt_client.connect(_id, _mqtt_username, _mqtt_password)) {
             APP_LOGW(TAG, "MQTT connection failed, retrying in 5 seconds...");
             vTaskDelay(pdMS_TO_TICKS(5000));
@@ -71,8 +68,7 @@ void task_mqtt_client(void *pvParameters) {
 
         APP_LOGI(TAG, "MQTT Connected!");
         xEventGroupSetBits(_normal_mode_event_group, MQTT_CONNECTED_BIT);
-
-        // 3. Đăng ký các topic cần thiết
+        
         if(mqtt_client.subscribe(_mqtt_topic_sub))
         {
             APP_LOGI(TAG, "Subcribe topic %s successful", _mqtt_topic_sub);
@@ -82,11 +78,9 @@ void task_mqtt_client(void *pvParameters) {
             APP_LOGW(TAG, "Subcribe topic %s failed.", _mqtt_topic_sub);
         }
 
-        // 4. Vòng lặp hoạt động
         while(mqtt_client.connected()) {
-            mqtt_client.loop(); // Xử lý các tin nhắn đến (sẽ gọi callback)
-
-            // Kiểm tra queue dữ liệu đi và gửi
+            mqtt_client.loop(); 
+            
             mqtt_message_t data_to_send;
             if (xQueueReceive(_mqtt_outgoing_queue, &data_to_send, 0) == pdPASS) {
                 mqtt_client.publish(data_to_send.topic, data_to_send.payload);
@@ -143,8 +137,7 @@ void task_mqtt_client(void *pvParameters) {
 
             vTaskDelay(pdMS_TO_TICKS(20));
         }
-
-        // Nếu vòng lặp trên bị thoát ra (do mất kết nối), báo cho hệ thống
+        
         xEventGroupClearBits(_normal_mode_event_group, MQTT_CONNECTED_BIT);
         APP_LOGW(TAG, "MQTT Disconnected. Will retry...");
     }

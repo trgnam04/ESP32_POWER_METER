@@ -27,12 +27,10 @@ void init_sensor_processing(void)
     ASSERT_BOOL(task_result, TAG, "Create sensor processing task failed.");
 }
 
-// file: sensor_processing.cpp
-
 void task_sensor_processing(void* pvParameters)
 {
     TickType_t xLastWakeTime = xTaskGetTickCount();
-    const TickType_t period = SENSOR_READ_PERIOD; // Ví dụ: 1000ms
+    const TickType_t period = SENSOR_READ_PERIOD; 
     static uint32_t warning_timeslot = 0;
 
     for(;;)
@@ -47,9 +45,9 @@ void task_sensor_processing(void* pvParameters)
          * 1. Define error log base on reach over the warning timeslot time threshold
          * 2. Cause this task can run on many state so we will change it to FSM later with some explicit state.
          */
-        raw_sensor_data_t sensor_reading = {0}; // Khởi tạo sạch sẽ
+        raw_sensor_data_t sensor_reading = {0}; 
 
-        // Cố gắng đọc dữ liệu từ cảm biến
+
         if (bl0940.getData())
         {
             sensor_reading.is_valid     = true;
@@ -59,7 +57,7 @@ void task_sensor_processing(void* pvParameters)
             sensor_reading.activeEnergy = bl0940.activeEnergy;
             sensor_reading.powerFactor  = bl0940.powerFactor;
             sensor_reading.temperature  = bl0940.temperature;
-            
+
             xQueueSend(_raw_sensor_data_queue, &sensor_reading, 0);
         }
         else
@@ -75,8 +73,7 @@ void task_sensor_processing(void* pvParameters)
             break;
         }
         
-        // Gửi dữ liệu (dù thành công hay thất bại) vào hàng đợi trung gian
-        // để task logic có thể xử lý (ví dụ: báo lỗi nếu không hợp lệ)
+        
         // xQueueSend(_raw_sensor_data_queue, &sensor_reading, 0);
 
         vTaskDelayUntil(&xLastWakeTime, period);

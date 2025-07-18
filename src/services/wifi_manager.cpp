@@ -66,14 +66,11 @@ void task_wifi_manager(void *pvParameters)
     WiFi.mode(WIFI_STA);
     WiFi.begin(_wifi_ssid, _wifi_password); 
 
-    for(;;) {
-        // Task này không cần làm gì nhiều trong vòng lặp vì đã có event callback.
-        // Nó chỉ tồn tại để khởi tạo và có thể xử lý các logic phức tạp hơn nếu cần.
-        // Nếu WiFi.reconnect() không hoạt động tốt, bạn có thể đặt logic reconnect ở đây.
+    for(;;) {        
         if (WiFi.status() != WL_CONNECTED) {
             WiFi.reconnect();
         }
-        vTaskDelay(pdMS_TO_TICKS(10000)); // Kiểm tra lại sau mỗi 10 giây
+        vTaskDelay(pdMS_TO_TICKS(10000)); 
     }
 
 

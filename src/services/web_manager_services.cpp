@@ -30,10 +30,6 @@ static SemaphoreHandle_t s_sensor_data_mutex        = NULL;
 static raw_sensor_data_t    sensor_data_local_buffer;
 
 
-/**
- * @brief Gửi một tin nhắn JSON đến client WebSocket hiện tại.
- * @param doc Đối tượng JsonDocument chứa nội dung cần gửi.
- */
 static void send_ws_json(const JsonDocument& doc) {
     String json_string;
     serializeJson(doc, json_string);
@@ -77,10 +73,10 @@ void start_ap_mode()
     APP_LOGI(TAG, "AP IP: %s", IP.toString().c_str());
 
     setup_http_server_endpoints();
-    g_http_server.begin();  // Không có return bool, giả định sẽ không lỗi nghiêm trọng
+    g_http_server.begin();  
     delay(100);
     g_ws_server.onEvent(websocket_event_callback);
-    g_ws_server.begin();    // Tương tự, không có return
+    g_ws_server.begin();    
 
     BaseType_t ws_task_result = xTaskCreatePinnedToCore(
         task_ap_main_loop,
@@ -97,13 +93,9 @@ void start_ap_mode()
 }
 
 
-/**
- * @brief Đăng ký tất cả các endpoint cho HTTP Web Server. 
- */
-void setup_http_server_endpoints() {
 
-    // --- CÁC ENDPOINT ĐƠN GIẢN: CHỈ TRẢ VỀ DỮ LIỆU/TRANG TĨNH ---
-    // Các endpoint này rất nhanh, không cần đưa vào queue xử lý.
+void setup_http_server_endpoints() {
+    
 
     g_http_server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
         request->send(200, "text/html", html_monitor);
@@ -118,7 +110,7 @@ void setup_http_server_endpoints() {
     });
 
     g_http_server.on("/admin", HTTP_GET, [](AsyncWebServerRequest *request) {
-        if (g_is_ap_logged_in) { // Giả sử ap_logged_in là biến global được quản lý an toàn
+        if (g_is_ap_logged_in) { 
             request->send(200, "text/html", html_admin);
         } else {
             request->send(200, "text/html", html_login);
@@ -131,39 +123,36 @@ void setup_http_server_endpoints() {
     });
 
     g_http_server.on("/PowerMeter", HTTP_GET, [](AsyncWebServerRequest* request)
-    {
-        // 1. Tạo một bản sao cục bộ để chứa dữ liệu
-        // Điều này giúp chúng ta giữ Mutex trong thời gian ngắn nhất có thể
+    {        
         raw_sensor_data_t sensor_copy; 
 
-        // 2. Yêu cầu quyền truy cập vào struct chung (lấy "chìa khóa" Mutex)
+     
         if (xSemaphoreTake(s_sensor_data_mutex, pdMS_TO_TICKS(100)) == pdTRUE)
         {
-            // **TRUY CẬP AN TOÀN**
-            // 3. Sao chép dữ liệu từ struct chung ra bản sao cục bộ
+     
+     
             sensor_copy = sensor_data_local_buffer;
             
-            // 4. Trả lại Mutex ngay lập tức sau khi sao chép xong
+     
             xSemaphoreGive(s_sensor_data_mutex);
         }
         else
         {
-            // Nếu không lấy được Mutex trong 100ms, báo lỗi server bận
+     
             request->send(503, "text/plain", "Service temporarily unavailable");
             return;
         }
 
-        // 5. Bây giờ, làm việc trên bản sao cục bộ một cách an toàn
         String data_to_send = "";
         if (sensor_copy.is_valid) 
         {
-            // Định dạng chuỗi theo đúng logic bạn yêu cầu
+        
             data_to_send += String(sensor_copy.voltage) + ",";
             data_to_send += String(sensor_copy.current) + ",";
             data_to_send += String(sensor_copy.activePower) + ",";
             data_to_send += String(sensor_copy.activeEnergy) + ",";
             
-            // Áp dụng logic cho power factor
+          
             if (sensor_copy.current == 0) {
                 data_to_send += String(100) + ",";
             } else {
@@ -174,17 +163,14 @@ void setup_http_server_endpoints() {
         } 
         else 
         {
-            // Trả về một chuỗi báo lỗi nếu chưa có dữ liệu hợp lệ
-            data_to_send = "0,0,0,0,0,0"; // Hoặc "Waiting for data..."
-        }
 
-        // 6. Gửi chuỗi dữ liệu đã được định dạng
+            data_to_send = "0,0,0,0,0,0"; 
+        }
+        
         request->send(200, "text/plain", data_to_send);
     });
     
     g_http_server.on("/scan_wifi", HTTP_GET, [](AsyncWebServerRequest *request){
-        // Logic quét WiFi bất đồng bộ, trả về ngay lập tức để không block.
-        // Đây là một tác vụ đặc biệt, không cần queue nếu thư viện đã hỗ trợ non-blocking.
         if(WiFi.scanComplete() == WIFI_SCAN_RUNNING){
             request->send(503, "text/plain", "Scan in progress");
             return;
@@ -194,8 +180,6 @@ void setup_http_server_endpoints() {
     });
 
 
-    // --- CÁC ENDPOINT PHỨC TẠP: CẦN XỬ LÝ LOGIC, GHI DỮ LIỆU ---
-    // Áp dụng mô hình "Nhận, Giao việc, Phản hồi".
 
     g_http_server.on("/updateWiFi", HTTP_POST, [](AsyncWebServerRequest *request) {
         if (request->hasParam("new_ssid", true) && request->hasParam("new_password", true)) {
@@ -273,26 +257,20 @@ void setup_http_server_endpoints() {
             request->send(503, "text/plain", "Server busy.");
         }
     });
-
-    // Xử lý các trang không tồn tại
+    
     g_http_server.onNotFound([](AsyncWebServerRequest *request) {
         request->send(404, "text/plain", "Not found");
     });
 }
 
 
-/**
- * @brief Hàm callback của WebSocket Server. Chỉ đóng gói và gửi sự kiện đi.
- * @note  Hàm này thay thế hoàn toàn phiên bản cũ.
- */
-void websocket_event_callback(uint8_t num, WStype_t type, uint8_t *payload, size_t length) {
-    // Chỉ xử lý nếu queue đã được khởi tạo
+void websocket_event_callback(uint8_t num, WStype_t type, uint8_t *payload, size_t length) {    
     if (_web_manager_event_queue == NULL) {
         return;
     }
 
     app_event_t evt;
-    evt.source = EVT_SRC_WEBSOCKET; // Đánh dấu nguồn là WebSocket
+    evt.source = EVT_SRC_WEBSOCKET;
 
     switch (type) {
         case WStype_DISCONNECTED:
@@ -366,7 +344,7 @@ void task_event_handler(void *pvParameters)
                     APP_LOGI(TAG, "Processing 'Update Admin' request.");
 
                     if (g_is_ap_logged_in) {
-                        // save_admin_credentials(evt.data.http.param1, evt.data.http.param2);
+                        
                         strcpy(_id, evt.data.http.param1);
                         strcpy(_station_code, evt.data.http.param2);
                         memory_save_device_id();
@@ -414,8 +392,7 @@ void task_event_handler(void *pvParameters)
                         case WEBSOCKET_CONNECTED:
                             s_current_ws_client_num = evt.data.ws.client_num;
                             APP_LOGI(TAG, "Handler: WS Client #%u connected.", s_current_ws_client_num);
-
-                            // Bắt đầu chu trình: Gửi yêu cầu thông tin WiFi
+                            
                             {
                                 ArduinoJson::StaticJsonDocument<100> json_doc;
                                 json_doc["state"] = "request_wifi";
@@ -423,12 +400,12 @@ void task_event_handler(void *pvParameters)
                                 APP_LOGI(TAG, "Handler: Sent 'request_wifi'.");
                             }
                             s_ws_fsm_state = FSM_WS_WAITING_FOR_WIFI;
-                            s_ws_last_sent_tick = xTaskGetTickCount(); // Bắt đầu tính giờ gửi lại
+                            s_ws_last_sent_tick = xTaskGetTickCount(); 
                             break;
 
                         case WEBSOCKET_DISCONNECTED:
                             APP_LOGI(TAG, "Handler: WS Client #%u disconnected.", evt.data.ws.client_num);
-                            s_ws_fsm_state = FSM_WS_IDLE; // Reset FSM về trạng thái chờ
+                            s_ws_fsm_state = FSM_WS_IDLE; 
                             break;
 
                         case WEBSOCKET_TEXT_RECEIVED:
@@ -443,21 +420,19 @@ void task_event_handler(void *pvParameters)
                                         const char* ssid = json_doc["ssid"];
                                         const char* password = json_doc["password"];
                                         memory_save_wifi_config();
-
-                                        // Chuyển trạng thái: Gửi topic MQTT
+                                        
                                         {
                                             ArduinoJson::StaticJsonDocument<128> out_json_doc;
                                             out_json_doc["state"] = "send_topic";
-                                            out_json_doc["topic"] = "your_mqtt_topic"; // Thay bằng biến topic thực tế
+                                            out_json_doc["topic"] = "your_mqtt_topic"; 
                                             send_ws_json(out_json_doc);
                                             APP_LOGI(TAG, "Handler: Sent 'send_topic'.");
                                         }
                                         s_ws_fsm_state = FSM_WS_WAITING_FOR_ACK;
-                                        s_ws_last_sent_tick = xTaskGetTickCount(); // Reset bộ đếm giờ
+                                        s_ws_last_sent_tick = xTaskGetTickCount(); 
                                     } else if (strcmp(state, "receive_topic") == 0 && s_ws_fsm_state == FSM_WS_WAITING_FOR_ACK) {
                                         APP_LOGI(TAG, "Handler: WiFi config via WebSocket complete.");
-                                        s_ws_fsm_state = FSM_WS_FINISHED;
-                                        // Ra lệnh chuyển chế độ bằng cách tự gửi sự kiện
+                                        s_ws_fsm_state = FSM_WS_FINISHED;                                        
                                         app_event_t self_evt = { .source = EVT_SRC_HTTP_SERVER, .type = HTTP_REQ_GO_NORMAL };
                                         xQueueSend(_web_manager_event_queue, &self_evt, 0);
                                     }
@@ -473,22 +448,17 @@ void task_event_handler(void *pvParameters)
                     {
                         case SENSOR_DATA_READY:
                         {
-                            APP_LOGI(TAG, "Handler: Received new sensor data, parsing and updating struct.");
-            
-                            // Phân tích chuỗi JSON nhận được từ sự kiện
+                            APP_LOGI(TAG, "Handler: Received new sensor data, parsing and updating struct.");                            
                             StaticJsonDocument<256> json_doc;
                             DeserializationError error = deserializeJson(json_doc, evt.data.sensor.payload);
 
                             if (error) {
                                 APP_LOGE(TAG, "Handler: Failed to parse sensor JSON: %s", error.c_str());
-                                break; // Bỏ qua nếu JSON lỗi
+                                break; 
                             }
-
-                            // Yêu cầu quyền truy cập vào struct chung (lấy "chìa khóa")
+                            
                             if (xSemaphoreTake(s_sensor_data_mutex, pdMS_TO_TICKS(100)) == pdTRUE)
-                            {
-                                // **TRUY CẬP AN TOÀN**
-                                // Gán các giá trị đã phân tích vào struct toàn cục
+                            {                                                                
                                 sensor_data_local_buffer.voltage      = json_doc["voltage"];
                                 sensor_data_local_buffer.current      = json_doc["current"];
                                 sensor_data_local_buffer.activePower  = json_doc["activePower"];
@@ -496,8 +466,7 @@ void task_event_handler(void *pvParameters)
                                 sensor_data_local_buffer.powerFactor  = json_doc["powerFactor"];
                                 sensor_data_local_buffer.temperature  = json_doc["temperature"];
                                 sensor_data_local_buffer.is_valid     = true;
-                                
-                                // Trả lại "chìa khóa" ngay sau khi dùng xong
+                                                 
                                 xSemaphoreGive(s_sensor_data_mutex);
                             }
                             else
@@ -517,20 +486,17 @@ void task_event_handler(void *pvParameters)
             // KHÔNG CÓ SỰ KIỆN MỚI -> KIỂM TRA CÁC LOẠI TIMEOUT
             TickType_t current_tick = xTaskGetTickCount();
 
-            // 1. Kiểm tra timeout của toàn bộ chế độ AP
             if ((current_tick - g_last_activity_tick) > pdMS_TO_TICKS(AP_TIMEOUT_MS)) {
                 APP_LOGI(TAG, "AP mode timed out. Switching to normal mode.");
                 app_event_t self_evt = { .source = EVT_SRC_HTTP_SERVER, .type = HTTP_REQ_GO_NORMAL };
                 xQueueSend(_web_manager_event_queue, &self_evt, 0);
             }
-
-            // 2. Kiểm tra timeout của phiên đăng nhập
+            
             if (g_is_ap_logged_in && ((current_tick - g_login_timestamp_tick) > pdMS_TO_TICKS(LOGIN_TIMEOUT_MS))) {
                 APP_LOGI(TAG, "Login session timed out.");
                 g_is_ap_logged_in = false;
             }
-
-            // 3. Kiểm tra timeout gửi lại tin nhắn WebSocket
+            
             if (s_ws_fsm_state == FSM_WS_WAITING_FOR_WIFI && (current_tick - s_ws_last_sent_tick) > pdMS_TO_TICKS(3000)) {
                 APP_LOGW(TAG, "Handler: Resending 'request_wifi' due to timeout.");
                 ArduinoJson::StaticJsonDocument<100> json_doc;

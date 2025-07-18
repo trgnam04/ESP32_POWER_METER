@@ -144,17 +144,17 @@ void task_system_supervisor(void *pvParameters)
             {
                 APP_LOGI(TAG, "Received command to switch to NORMAL mode.");
                 
-                // 1. Ra hiệu và/hoặc hủy task của chế độ AP
+                
                 if (_ap_main_loop_handler_t != NULL) 
                 {
                     vTaskDelete(_ap_main_loop_handler_t);
-                    _ap_main_loop_handler_t = NULL; // Quan trọng: Đặt lại handle
+                    _ap_main_loop_handler_t = NULL; 
                 }
 
                 if (_event_task_handler_t != NULL)
                 {
                     vTaskDelete(_event_task_handler_t);
-                    _event_task_handler_t = NULL; // Quan trọng: Đặt lại handle   
+                    _event_task_handler_t = NULL; 
                 }
 
                 vTaskDelay(pdMS_TO_TICKS(500));

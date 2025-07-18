@@ -56,17 +56,14 @@ void task_normal_mode_app_logic(void *pvParameters) {
         // Chờ nhận dữ liệu thô từ task sensor
         if (xQueueReceive(_raw_sensor_data_queue, &received_data, portMAX_DELAY) == pdPASS) {
 
-            // Kiểm tra xem dữ liệu có hợp lệ không
+            
             if (!received_data.is_valid) {
-                // Có thể xử lý lỗi ở đây, ví dụ gửi cảnh báo
+             
                 continue;
-            }
+            }            
 
-            // **BỘ ĐỊNH TUYẾN DỮ LIỆU DỰA TRÊN TRẠNG THÁI HỆ THỐNG**
             if (_system_current_state == STATE_NORMAL_MODE) {
-                // --- Luồng NORMAL: Gắn timestamp và gửi tới MQTT ---
                 
-                // Chờ các điều kiện cần thiết (MQTT connected, Time synced)
                 xEventGroupWaitBits(_normal_mode_event_group, (MQTT_CONNECTED_BIT | NTP_SYNCED_BIT), pdFALSE, pdTRUE, portMAX_DELAY);
 
                 char timestamp_buffer[32];
@@ -75,7 +72,7 @@ void task_normal_mode_app_logic(void *pvParameters) {
                 String mqtt_payload;
                 prepare_mqtt_payload(mqtt_payload, &received_data, timestamp_buffer);
                 
-                // Đóng gói và gửi vào hàng đợi của MQTT
+                
                 mqtt_message_t mqtt_msg;
                 strncpy(mqtt_msg.topic, _mqtt_topic_pub, sizeof(mqtt_msg.topic) - 1);
                 strncpy(mqtt_msg.payload, mqtt_payload.c_str(), sizeof(mqtt_msg.payload) - 1);
@@ -84,15 +81,15 @@ void task_normal_mode_app_logic(void *pvParameters) {
                 APP_LOGI(TAG, "APP: Routed sensor data to MQTT task.");
 
             } else if (_system_current_state == STATE_AP_MODE) {
-                // --- Luồng AP: Gửi tới Web UI ---
+                
 
                 String mqtt_payload;
                 prepare_mqtt_payload(mqtt_payload, &received_data, "");
                                                 
-                // Đóng gói vào sự kiện chung và gửi cho task_event_handler
+                
                 app_event_t sensor_evt;
-                sensor_evt.source = EVT_SRC_SENSOR; // Tạo một nguồn mới
-                sensor_evt.type = SENSOR_DATA_READY; // Tạo một loại sự kiện mới
+                sensor_evt.source = EVT_SRC_SENSOR; 
+                sensor_evt.type = SENSOR_DATA_READY; 
                 strncpy(sensor_evt.data.sensor.payload, mqtt_payload.c_str(), sizeof(sensor_evt.data.sensor.payload) - 1);
                 xQueueSend(_web_manager_event_queue, &sensor_evt, 0);
 
@@ -104,32 +101,32 @@ void task_normal_mode_app_logic(void *pvParameters) {
 
 void task_ntp_sync(void *pvParameters) {
     bool isFirstSync = true;
-    const TickType_t xRetryInterval = pdMS_TO_TICKS(15000); // Thử lại sau mỗi 15 giây nếu thất bại
-    const TickType_t xLongDelay = pdMS_TO_TICKS(1 * 60 * 60 * 1000); // Ngủ 1 giờ sau khi thành công
+    const TickType_t xRetryInterval = pdMS_TO_TICKS(15000); 
+    const TickType_t xLongDelay = pdMS_TO_TICKS(1 * 60 * 60 * 1000); 
 
     APP_LOGI(TAG, "NTP Sync Task started.");
 
     for (;;) {
-        // 1. Chờ có kết nối Wi-Fi
+        
         APP_LOGI(TAG, "NTP: Waiting for WiFi connection...");
         xEventGroupWaitBits(_normal_mode_event_group, WIFI_CONNECTED_BIT, pdFALSE, pdTRUE, portMAX_DELAY);
         
-        // 2. Thêm độ trễ nhỏ để mạng ổn định
+        
         vTaskDelay(pdMS_TO_TICKS(2000));
         
-        // 3. Kiểm tra DNS
+        
         IPAddress resolvedIP;
-        if (!WiFi.hostByName(NTP_SERVER, resolvedIP)) { // Giả sử NTP_SERVER = "pool.ntp.org"
+        if (!WiFi.hostByName(NTP_SERVER, resolvedIP)) { 
             APP_LOGE(TAG, "NTP: DNS resolution failed. Retrying in 15 seconds...");
             vTaskDelay(xRetryInterval);
-            continue; // Quay lại đầu vòng lặp
+            continue; 
         }
         APP_LOGI(TAG, "NTP: DNS OK. '%s' is at %s", NTP_SERVER, resolvedIP.toString().c_str());
 
-        // 4. Bắt đầu cấu hình và cố gắng đồng bộ
+        
         ntp_time_init();
 
-        // mutex clock here
+        
         if (ntp_time_get_string(time_buffer, sizeof(time_buffer))) {
             APP_LOGI(TAG, "NTP: Time synced successfully: %s", time_buffer);
             
@@ -138,7 +135,7 @@ void task_ntp_sync(void *pvParameters) {
                 isFirstSync = false;
             }
 
-            // Ngủ một giấc dài trước khi đồng bộ lại
+            
             vTaskDelay(xLongDelay);
 
         } else {
